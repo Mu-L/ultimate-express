@@ -321,6 +321,28 @@ module.exports = class Request extends Readable {
             return false;
         }
         if((this.res.statusCode >= 200 && this.res.statusCode < 300) || this.res.statusCode === 304) {
+            // fast path: res.end() reads req.fresh on every response, but fresh() can only
+            // return true when the request carries a conditional header. Scan the raw entries
+            // instead of materializing the full headers object, which is lazy by design.
+            // Only valid while headers are untouched: both the getter and the setter populate #cachedHeaders.
+            if(this.#cachedHeaders === null) {
+                let hasConditional = false;
+                const entries = this.#rawHeadersEntries;
+                for(let i = 0, len = entries.length; i < len; i++) {
+                    const key = entries[i][0];
+                    // 'if-none-match'.length === 13, 'if-modified-since'.length === 17
+                    if(key.length === 13 || key.length === 17) {
+                        const lower = key.toLowerCase();
+                        if(lower === 'if-none-match' || lower === 'if-modified-since') {
+                            hasConditional = true;
+                            break;
+                        }
+                    }
+                }
+                if(!hasConditional) {
+                    return false;
+                }
+            }
             return fresh(this.headers, {
                 'etag': this.res.headers['etag'],
                 'last-modified': this.res.headers['last-modified'],
