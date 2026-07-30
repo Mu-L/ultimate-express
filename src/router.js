@@ -505,6 +505,7 @@ module.exports = class Router extends EventEmitter {
         // avoid calling _preprocessRequest as async function as its slower
         // but it seems like calling it as async has unintended, but useful consequence of resetting max call stack size
         // so call it as async when the request has been through every 300 routes to reset it
+        // routeCount starts at 1 so the first route of a request (fresh stack) takes the sync path
         const continueRoute = this._paramCallbacks.size === 0 && req.routeCount % 300 !== 0 ? 
             this._preprocessRequest(req, res, route) : await this._preprocessRequest(req, res, route);
         
@@ -533,7 +534,9 @@ module.exports = class Router extends EventEmitter {
             }
         }
         return new Promise((resolve) => {
-            const next = async (thingamabob) => {
+            // plain (non-async) function: an async next() would allocate an unconsumed promise
+            // on every middleware/handler step of every request
+            const next = (thingamabob) => {
                 if(thingamabob) {
                     if(thingamabob === 'route') {
                         if(route.use && !route.keepMount) {
@@ -579,16 +582,17 @@ module.exports = class Router extends EventEmitter {
                     if(callback.settings['strict routing'] && req.endsWithSlash && req._opPath[req._opPath.length - 1] !== '/') {
                         req._opPath += '/';
                     }
-                    const routed = await callback._routeRequest(req, res, 0);
-                    if(req._error) {
-                        req._errorKey = route.routeKey;
-                    }
-                    if(routed) return resolve(true);
-                    else if(req._isOptions && req._matchedMethods.size) {
-                        // OPTIONS routing is different, it stops in the router if matched
-                        return resolve(false);
-                    }
-                    next();
+                    callback._routeRequest(req, res, 0).then(routed => {
+                        if(req._error) {
+                            req._errorKey = route.routeKey;
+                        }
+                        if(routed) return resolve(true);
+                        if(req._isOptions && req._matchedMethods.size) {
+                            // OPTIONS routing is different, it stops in the router if matched
+                            return resolve(false);
+                        }
+                        next();
+                    });
                 } else {
                     // handle errors and error handlers
                     if(req._error || callback.length === 4) {
