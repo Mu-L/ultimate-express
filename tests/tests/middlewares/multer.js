@@ -41,7 +41,7 @@ app.listen(13333, async () => {
 
     const formData3 = new FormData();
     // 200kb
-    const bigFile = new File(new Array(Math.floor(1024 * 1024 * 0.2)).fill(0), 'big.txt');
+    const bigFile = new File([new Uint8Array(Math.floor(1024 * 1024 * 0.2))], 'big.txt');
     formData3.append('file', bigFile);
 
     const response3 = await fetch('http://localhost:13333/file', {
