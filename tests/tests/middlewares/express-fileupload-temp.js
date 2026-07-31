@@ -26,7 +26,7 @@ app.listen(13333, async () => {
         arr[i] = i % 256;
     }
     console.log('appending file');
-    const file = new File(arr, 'test.txt');
+    const file = new File([arr], 'test.txt');
     formData.append('file', file);
 
     console.log('sending request');
