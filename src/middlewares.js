@@ -234,7 +234,15 @@ function createBodyParser(defaultType, beforeReturn) {
 
             req.bodyRead = true;
 
+            // uWS keeps delivering chunks after we reject an oversized body, and the
+            // stream path still emits 'end', so without this every further chunk would
+            // call next() again and the second response would throw
+            let finished = false;
+
             function onData(buf) {
+                if(finished) {
+                    return;
+                }
                 if(!Buffer.isBuffer(buf)) {
                     buf = Buffer.from(buf);
                 }
@@ -247,11 +255,17 @@ function createBodyParser(defaultType, beforeReturn) {
 
                 totalSize += buf.length;
                 if(totalSize > options.limit) {
+                    finished = true;
+                    abs.length = 0;
                     return next(new Error('Request entity too large'));
                 }
             }
-    
+
             function onEnd() {
+                if(finished) {
+                    return;
+                }
+                finished = true;
                 const buf = Buffer.concat(abs);
                 if(options.verify) {
                     try {
