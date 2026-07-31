@@ -27,7 +27,11 @@ if(filterPath) {
 
 for (const testCategory of testCategories) {
     test(testCategory, async () => {
-        let tests = fs.readdirSync(path.join(__dirname, 'tests', testCategory)).sort((a, b) => parseInt(a) - parseInt(b));
+        // some tests write scratch directories next to themselves, and a leftover one
+        // would otherwise be read as if it were a test file
+        let tests = fs.readdirSync(path.join(__dirname, 'tests', testCategory))
+            .filter(testName => testName.endsWith('.js'))
+            .sort((a, b) => parseInt(a) - parseInt(b));
         for (const testName of tests) {
             if(filterPath && filterPath.endsWith('.js')) {
                 if(path.basename(testName) !== path.basename(filterPath)) {
